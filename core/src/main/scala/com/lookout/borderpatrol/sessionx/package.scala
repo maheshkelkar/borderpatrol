@@ -97,8 +97,8 @@ import com.twitter.util.{Time, Future}
  *   }
  *
  *   implicit val enc = SessionDataEncoder[Foo](
- *     foo => Buf.U32BE(toBytes.value),
- *     buf => new Foo { override val value = Buf.U32BE.unapply(b) }
+ *     foo => Buf.U32BE(foo.value),
+ *     buf => new Foo { override val value = Buf.U32BE.unapply(buf) }
  *   )
  *
  *   val foo1 = new Foo { override val value = 1 }

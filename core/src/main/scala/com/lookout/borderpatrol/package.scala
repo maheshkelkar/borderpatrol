@@ -75,12 +75,6 @@ package object borderpatrol {
 
     case class AuthResourceRequest[A](request: httpx.Request) extends RequestBase
 
-    trait BorderRequest[A] {
-      val authInfo: AuthInfo[A]
-      val request: httpx.Request
-      val sessionId: SessionId
-    }
-
   }
 
 }
