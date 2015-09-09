@@ -35,7 +35,7 @@ object reader {
 
   import model._
 
-  implicit var secretStore = SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
+  implicit val secretStore = SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
   implicit val sessionStore = SessionStore.InMemoryStore
 
   implicit val sessionIdDecoder: DecodeRequest[SessionId] =
