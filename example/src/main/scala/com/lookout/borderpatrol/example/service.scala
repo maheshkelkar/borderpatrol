@@ -25,10 +25,10 @@
 package com.lookout.borderpatrol.example
 import argonaut._, Argonaut._
 
-import com.twitter.finagle.httpx.{Method, Response, Request}
+import com.twitter.finagle.httpx.{Response, Method, Request}
 import com.twitter.finagle.{SimpleFilter, Service}
 import com.twitter.io.Buf
-import com.twitter.util.Future
+import com.twitter.util.{Await, Future, Duration}
 import io.finch.response.{Forbidden, ResponseBuilder, Ok}
 
 object service {
@@ -68,14 +68,18 @@ object service {
     }
 
     def login(req: Request): Future[Response] =
+    {
       (for {
         u <- param("username")(req)
         p <- param("password")(req)
-        s <- sessionReader(req)
-        tr <- tokenService(Request("e" -> u, "p" -> p, "s" -> "login"))
+        s <- sessionReader[String](SessionDataEncoder.encodeString)(req)
+        tr <- tokenService(Request(("e" -> u), ("p" -> p), ("s" -> "login")))
         if tr.status == Status.Ok
         s2 <- Session(tr.content)
-      } yield buildAuthResponse(s, s2)) or Future.value(Unauthorized("invalid login"))
+      } yield buildAuthResponse(s, s2)) handle {
+        case e => Unauthorized("invalid login")
+      }
+    }
 
     def apply(req: Request): Future[Response] =
       req.method match {
@@ -84,11 +88,12 @@ object service {
         case _ => Future.value(NotFound("login doesn't know this place"))
       }
 
-    def buildAuthResponse(prev: Session[Request], next: Session[Buf]): Response =
-      ResponseBuilder(Status.TemporaryRedirect)
-        .withHeaders("Location" -> prev.data.uri)
-        .withCookies(next.id.asCookie)()
-
+    def buildAuthResponse(prev: Session[String], next: Session[Buf]): Response = {
+      val rep = Response(Status.TemporaryRedirect)
+      rep.addCookie(next.id.asCookie)
+      rep.headerMap.add("Location", prev.data)
+      rep
+    }
   }
 
   /**
@@ -105,9 +110,10 @@ object service {
 
     def buildLoginResponse(request: Request): Future[Response] =
       Session(request) map { session =>
-        ResponseBuilder(Status.TemporaryRedirect)
-            .withHeaders("Location" -> "/login")
-            .withCookies(session.id.asCookie)()
+        val rep = Response(Status.TemporaryRedirect)
+        rep.addCookie(session.id.asCookie)
+        rep.headerMap.add("Location", "/login")
+        rep
       }
   }
   /**
@@ -119,11 +125,12 @@ object service {
   case class TokenService(auth: Map[User, Set[String]]) extends Service[Request, Response] {
 
     def apply(req: Request): Future[Response] =
+    {
       for {
         u <- userReader(req)
         s <- param("s")(req)
         if auth(u)(s)
-      } yield Ok(Token.generate(u))
+      } yield Ok(Token.generate(u)) }
   }
 
   case class ExternalService(name: String, allowed: Set[User]) extends Service[Request, Response] {

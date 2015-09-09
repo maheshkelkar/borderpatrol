@@ -35,7 +35,7 @@ object reader {
 
   import model._
 
-  implicit val secretStore = SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
+  implicit var secretStore = SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
   implicit val sessionStore = SessionStore.InMemoryStore
 
   implicit val sessionIdDecoder: DecodeRequest[SessionId] =
@@ -60,8 +60,8 @@ object reader {
   val sessionIdReader: RequestReader[SessionId] =
     cookie("border_session").map(_.value).as[SessionId]
 
-  val sessionReader: RequestReader[Session[Request]] =
-    sessionIdReader.embedFlatMap(sessionStore.get[Request]).embedFlatMap {
+  def sessionReader[A](implicit ev: SessionDataEncoder[A]): RequestReader[Session[A]] =
+    sessionIdReader.embedFlatMap(sessId => sessionStore.get[A](sessId)(ev)).embedFlatMap {
       case Some(s) => Future.value(s)
       case None => Future.exception(new RequestError("invalid session"))
     }
