@@ -11,8 +11,12 @@ package object keymaster {
 
   class IdentifyException extends Throwable
 
-  case class TokenAccessRequest(identity: Identity[Token], request: Request, serviceId: ServiceIdentifier) extends AccessRequest[Token]
-  case class TokenAccessResponse(access: Option[ServiceToken], response: Response) extends AccessResponse[ServiceToken]
+  case class KeymasterIdentifyReq(credential: Credential) extends IdentifyRequest[Credential]
+  case class KeymasterIdentifyRes(token: MasterToken) extends IdentifyResponse[MasterToken] {
+    val identity = Identity(token)
+  }
+  case class KeymasterAccessReq(identity: Identity[Token], serviceId: ServiceIdentifier) extends AccessRequest[Token]
+  case class KeymasterAccessRes(access: Option[ServiceToken]) extends AccessResponse[ServiceToken]
 
   /**
    * The identity provider for Keymaster, will connect to the remote keymaster server to authenticate and get an
@@ -35,10 +39,7 @@ package object keymaster {
       service(api(req.credential)).flatMap(res =>
         Tokens.derive[MasterToken](res.contentString).fold[Future[IdentifyResponse[MasterToken]]](
           err => Future.exception(err),
-          t => Future.value(new IdentifyResponse[MasterToken] {
-            override val identity: Identity[MasterToken] = Identity(t)
-            override val response: Response = res
-          })
+          t => Future.value(KeymasterIdentifyRes(t))
         )
       )
   }
@@ -48,12 +49,13 @@ package object keymaster {
    * @param service Keymaster service
    */
   case class KeymasterAccessIssuer(service: Service[Request, Response]) extends AccessIssuer[MasterToken, ServiceToken] {
-    val endpoint = "/api/auth/service/v1/account_master_token"
+    val endpoint = "/api/auth/service/v1/account_token.json"
 
     def api(req: AccessRequest[MasterToken]): Request =
       RequestBuilder.create
                     .addHeader("Auth-Token", req.identity.id.value)
                     .addFormElement(("service", req.serviceId.name))
+                    .url(endpoint)
                     .buildFormPost()
 
     /**
@@ -63,7 +65,7 @@ package object keymaster {
       service(api(req)).flatMap(res =>
         Tokens.derive[Tokens](res.contentString).fold[Future[AccessResponse[ServiceToken]]](
           e => Future.exception(e),
-          t => Future.value(TokenAccessResponse(t.service(req.serviceId.name), res)))
+          t => Future.value(KeymasterAccessRes(t.service(req.serviceId.name))))
         )
   }
 }

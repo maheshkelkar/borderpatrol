@@ -51,7 +51,6 @@ case class IdentityRequired(rep: Response, id: ServiceIdentifier)
  */
 trait IdentifyRequest[A] {
   val credential: A
-  val request: Request
 }
 
 /**
@@ -61,7 +60,6 @@ trait IdentifyRequest[A] {
  */
 trait IdentifyResponse[A] {
   val identity: Identity[A]
-  val response: Response
 }
 
 /**

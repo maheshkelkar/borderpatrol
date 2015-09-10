@@ -44,11 +44,10 @@ object Access {
    * The identification information needed by the [[com.lookout.borderpatrol.auth.Access.AccessIssuer AccessIssuer]]
    * to issue access data for your request
    *
-   * This can be thought of as a function (A, ServiceIdentifier, Req) => Req
+   * This can be thought of as a function (A, ServiceIdentifier) => Req
    */
   trait AccessRequest[A] {
     val identity: Identity[A]
-    val request: Request
     val serviceId: ServiceIdentifier
   }
 
@@ -57,7 +56,6 @@ object Access {
    */
   trait AccessResponse[A] {
     val access: Option[A]
-    val response: Response
   }
 
   /**
