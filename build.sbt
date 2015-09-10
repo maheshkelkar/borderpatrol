@@ -128,6 +128,13 @@ lazy val security = project
 lazy val auth = project
   .settings(moduleName := "borderpatrol-auth")
   .settings(allSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.circe" %% "circe-core" % "0.1.1",
+      "io.circe" %% "circe-generic" % "0.1.1",
+      "io.circe" %% "circe-jawn" % "0.1.1"
+    )
+  )
   .dependsOn(core, test % "test")
 
 lazy val server = project
