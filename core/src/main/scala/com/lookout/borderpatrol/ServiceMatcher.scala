@@ -1,5 +1,6 @@
 package com.lookout.borderpatrol
 
+import com.twitter.finagle.httpx.Request
 import com.twitter.finagle.httpx.path.Path
 
 /*
@@ -36,11 +37,17 @@ case class ServiceMatcher(services: Set[ServiceIdentifier]) {
   val domainTerm = "."
   val pathTerm = "/"
 
-  // helper for finding longest subdomain prefix in a set
-  private[this] def longestPrefix(sis: Set[ServiceIdentifier]): Option[ServiceIdentifier] =
-    sis.foldRight(Option.empty[ServiceIdentifier])((si, res) => res match {
-      case Some(s) if si.subdomain.size < s.subdomain.size => Some(s)
-      case _ => Some(si)
+  /**
+   * Helper for finding longest subdomain prefix in a set
+   * @param sis A set of identifiers that have matched some precondition
+   * @param cmp A comparable function
+   * @return The maximuma of folding over the set with the cmp function
+   */
+  private[this] def foldWith(sis: Set[ServiceIdentifier],
+                             cmp: (ServiceIdentifier, ServiceIdentifier) => ServiceIdentifier): Option[ServiceIdentifier] =
+    sis.foldRight(Option.empty[ServiceIdentifier])((lhs, res) => res match {
+      case Some(rhs) => Some(cmp(lhs, rhs))
+      case None => Some(lhs)
     })
 
   /**
@@ -56,22 +63,43 @@ case class ServiceMatcher(services: Set[ServiceIdentifier]) {
    * @param host The fully qualified host name
    * @return the service name from the longest matching subdomain
    */
-  def subdomain(host: String): Option[String] =
-    longestPrefix(
-      services.filter(si => host.startsWith(si.subdomain + domainTerm))
-    ).map(_.name)
+  def subdomain(host: String): Option[ServiceIdentifier] =
+    foldWith(
+      services.filter(si => host.startsWith(si.subdomain + domainTerm)),
+      (si1, si2) => if (si1.subdomain.size > si2.subdomain.size) si1 else si2
+    )
 
   /**
-   * Find the path exactly matching the path in the request
+   * Find the longest matching path in the request
    *
+   * @example
+   *          Given a request of path of "/a" and a set of paths Set("/account", "/a")
    * @param pathString path string from request
-   * @return the service name from the exact path match
+   * @return the service name from the longest matching path
    */
-  def path(pathString: String): Option[String] = {
-    val path = Path(pathString)
-    services.find(_.path == path).map(_.name)
+  def path(pathString: String): Option[ServiceIdentifier] = {
+    path(Path(pathString))
   }
 
-}
+  /**
+   * Find the longest matching path in the request
+   *
+   * @example
+   *          Given a request of path of "/a" and a set of paths Set("/account", "/a")
+   * @param path path from request
+   * @return the service name from the longest matching path
+   */
+  def path(path: Path): Option[ServiceIdentifier] =
+    foldWith(
+      services.filter(id => path.startsWith(id.path)),
+      (si1, si2) => if (si1.path.toString.size > si2.path.toString.size) si1 else si2
+    )
 
+  /**
+   * Derive a ServiceIdentifier from an `httpx.Request`
+   */
+  def get(req: Request): Option[ServiceIdentifier] =
+    path(req.path) orElse req.host.flatMap(subdomain)
+
+}
 

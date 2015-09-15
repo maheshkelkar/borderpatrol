@@ -56,8 +56,16 @@ object Access {
  * This can be thought of as a function (A, ServiceIdentifier) => Req
  */
 trait AccessRequest[A] {
-  val identity: Id[A]
+  val identity: Identity[A]
   val serviceId: ServiceIdentifier
+}
+
+object AccessRequest {
+  def apply[A](id: Identity[A], sid: ServiceIdentifier): AccessRequest[A] =
+    new AccessRequest[A] {
+      val identity = id
+      val serviceId = sid
+    }
 }
 
 /**
