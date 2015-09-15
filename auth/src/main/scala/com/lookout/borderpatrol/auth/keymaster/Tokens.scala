@@ -44,26 +44,24 @@ case class ServiceTokens(services: Map[String, ServiceToken] = Map.empty[String,
  *         Tokens.empty.service("service_name") // returns None
  *         decode[Tokens](jsonString) // result in circe decode result
  */
-case class Tokens(master: Token, services: ServiceTokens) {
+case class Tokens(master: MasterToken, services: ServiceTokens) {
   def service(name: String): Option[ServiceToken] =
     services.find(name)
 }
 
 object Tokens {
 
-  val empty: Tokens = Tokens(EmptyToken, ServiceTokens())
-
   def derive[A](input: String): Xor[Error, A] =
     jawn.decode[A](input)
 
   /**
    * {"auth_service": "a"} -> MasterToken("a")
-   * {} -> EmptyToken
+   * {} -> result error
    */
-  implicit val MasterTokenDecoder: Decoder[Token] = Decoder.instance[Token]( c =>
+  implicit val MasterTokenDecoder: Decoder[MasterToken] = Decoder.instance[MasterToken]( c =>
     for {
-      value <- (c.downField("auth_service")).as[Option[String]]
-    } yield value.fold[Token](EmptyToken)(MasterToken(_))
+      value <- (c.downField("auth_service")).as[String]
+    } yield MasterToken(value)
   )
 
   /**

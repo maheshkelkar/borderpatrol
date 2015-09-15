@@ -3,7 +3,7 @@ package com.lookout.borderpatrol.sessionx
 import java.util.concurrent.TimeUnit
 import com.lookout.borderpatrol.crypto.Generator
 import com.twitter.bijection.Injection
-import com.twitter.finagle.httpx.Cookie
+import com.twitter.finagle.httpx.{Request, Cookie}
 import com.twitter.util._
 
 import scala.util.{Success, Failure, Try}
@@ -90,6 +90,13 @@ object SessionId {
 
   def toCookie(id: SessionId): Cookie =
     new Cookie("border_session", toBase64(id))
+
+  def fromRequest(req: Request): Try[SessionId] =
+    req.cookies.get("border_session") match {
+      case Some(cookie) => SessionId.from[Cookie](cookie)
+      case None => Failure(SessionIdError("no border_session cookie"))
+    }
+
 
   object SessionIdInjections {
 

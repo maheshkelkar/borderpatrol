@@ -24,6 +24,10 @@
 
 package com.lookout.borderpatrol
 
+import com.twitter.util.Future
+
+import scala.util.{Failure, Success, Try}
+
 /**
  * This provides the specification contracts for doing auth in the form of
  * Type Classes in [[auth.Access]] and [[auth.Identity]]
@@ -40,4 +44,12 @@ package com.lookout.borderpatrol
  *   - `Access` the internal access provider and types, e.g. api tokens, jwt etc
  *
  */
-package object auth
+package object auth {
+
+  implicit class TryOps[A](val tryA: Try[A]) extends AnyVal {
+    def toFuture: Future[A] = tryA match {
+        case Success(a) => Future.value[A](a)
+        case Failure(e) => Future.exception(e)
+      }
+  }
+}

@@ -25,8 +25,10 @@
 package com.lookout.borderpatrol
 
 import argonaut._, Argonaut._
-import com.twitter.finagle.httpx.Cookie
+import com.twitter.finagle.httpx.{Request, Cookie}
 import com.twitter.util.{Time, Future}
+
+import scala.util.{Failure, Success}
 
 /**
  * This introduces types and functions that enable identifying, fetching, and storing web session data. This

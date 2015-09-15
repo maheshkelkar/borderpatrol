@@ -1,19 +1,18 @@
 package com.lookout.borderpatrol.auth
 
-import com.lookout.borderpatrol.ServiceIdentifier
-import com.lookout.borderpatrol.auth.Access.{AccessResponse, AccessRequest, AccessIssuer}
+import com.lookout.borderpatrol.{sessionx, ServiceIdentifier}
 import com.twitter.finagle.Service
 import com.twitter.finagle.httpx.{RequestBuilder, Request, Response}
 import com.twitter.util.Future
 
 package object keymaster {
-  case class Credential(email: String, password: String)
+  case class Credential(email: String, password: String, serviceId: ServiceIdentifier)
 
   class IdentifyException extends Throwable
 
   case class KeymasterIdentifyReq(credential: Credential) extends IdentifyRequest[Credential]
-  case class KeymasterIdentifyRes(token: MasterToken) extends IdentifyResponse[MasterToken] {
-    val identity = Identity(token)
+  case class KeymasterIdentifyRes(tokens: Tokens) extends IdentifyResponse[Tokens] {
+    val identity = Identity(tokens)
   }
   case class KeymasterAccessReq(identity: Identity[Token], serviceId: ServiceIdentifier) extends AccessRequest[Token]
   case class KeymasterAccessRes(access: Option[ServiceToken]) extends AccessResponse[ServiceToken]
@@ -23,21 +22,22 @@ package object keymaster {
    * identity (master token)
    * @param service Keymaster service
    */
-  case class KeymasterIdentityProvider(service: Service[Request, Response]) extends IdentityProvider[Credential, MasterToken] {
+  case class KeymasterIdentityProvider(service: Service[Request, Response], store: sessionx.SessionStore)
+      extends IdentityProvider[Credential, Tokens] {
     val endpoint = "/api/auth/service/v1/account_master_token"
 
     def api(cred: Credential): Request =
       RequestBuilder.create
-                    .addFormElement(("e", cred.email), ("p", cred.password))
+                    .addFormElement(("e", cred.email), ("p", cred.password), ("s", cred.serviceId.name))
                     .url(endpoint)
                     .buildFormPost()
 
     /**
      * Sends credentials, if authenticated successfully will return a MasterToken otherwise a Future.exception
      */
-    def apply(req: IdentifyRequest[Credential]): Future[IdentifyResponse[MasterToken]] =
+    def apply(req: IdentifyRequest[Credential]): Future[IdentifyResponse[Tokens]] =
       service(api(req.credential)).flatMap(res =>
-        Tokens.derive[MasterToken](res.contentString).fold[Future[IdentifyResponse[MasterToken]]](
+        Tokens.derive[Tokens](res.contentString).fold[Future[IdentifyResponse[Tokens]]](
           err => Future.exception(err),
           t => Future.value(KeymasterIdentifyRes(t))
         )
@@ -48,13 +48,14 @@ package object keymaster {
    * The access issuer will use the MasterToken to gain access to service tokens
    * @param service Keymaster service
    */
-  case class KeymasterAccessIssuer(service: Service[Request, Response]) extends AccessIssuer[MasterToken, ServiceToken] {
+  case class KeymasterAccessIssuer(service: Service[Request, Response], store: sessionx.SessionStore)
+      extends AccessIssuer[MasterToken, ServiceToken] {
     val endpoint = "/api/auth/service/v1/account_token.json"
 
     def api(req: AccessRequest[MasterToken]): Request =
       RequestBuilder.create
                     .addHeader("Auth-Token", req.identity.id.value)
-                    .addFormElement(("service", req.serviceId.name))
+                    .addFormElement(("services", req.serviceId.name))
                     .url(endpoint)
                     .buildFormPost()
 

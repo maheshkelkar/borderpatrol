@@ -1,9 +1,7 @@
 package com.lookout.borderpatrol.auth
 
 import com.lookout.borderpatrol.ServiceIdentifier
-import com.lookout.borderpatrol.auth.Identity
-import com.twitter.finagle.httpx.{Response, Request}
-import com.twitter.finagle.{Service, httpx}
+import com.twitter.finagle.Service
 
 /**
  * The purpose of this module is to transpose an incoming identified request into a request that the `AccessIssuer`
@@ -38,29 +36,39 @@ import com.twitter.finagle.{Service, httpx}
  *   }
  * }}}
  */
-object Access {
 
-  /**
-   * The identification information needed by the [[com.lookout.borderpatrol.auth.Access.AccessIssuer AccessIssuer]]
-   * to issue access data for your request
-   *
-   * This can be thought of as a function (A, ServiceIdentifier) => Req
-   */
-  trait AccessRequest[A] {
-    val identity: Identity[A]
-    val serviceId: ServiceIdentifier
-  }
-
-  /**
-   * This response contains the access data needed by an authenticated endpoint, e.g. grants, tokens, api keys
-   */
-  trait AccessResponse[A] {
-    val access: Option[A]
-  }
-
-  /**
-   * Describes a service that acts as an Access issuing endpoint, this would be something like an OAuth2 token
-   * service, or an LDAP server, or a database that holds access tokens for user credentials
-   */
-  trait AccessIssuer[A, B] extends Service[AccessRequest[A], AccessResponse[B]]
+/**
+ * Abstraction for some access data, e.g. service token, grant, role, scope
+ */
+trait Access[A] {
+  val access: A
 }
+
+object Access {
+  def apply[A](a: A): Access[A] =
+    new Access[A] {val access = a}
+}
+
+/**
+ * The identification information needed by the [[com.lookout.borderpatrol.auth.AccessIssuer AccessIssuer]]
+ * to issue access data for your request
+ *
+ * This can be thought of as a function (A, ServiceIdentifier) => Req
+ */
+trait AccessRequest[A] {
+  val identity: Id[A]
+  val serviceId: ServiceIdentifier
+}
+
+/**
+ * This response contains the access data needed by an authenticated endpoint, e.g. grants, tokens, api keys
+ */
+trait AccessResponse[A] {
+  val access: Access[A]
+}
+
+/**
+ * Describes a service that acts as an Access issuing endpoint, this would be something like an OAuth2 token
+ * service, or an LDAP server, or a database that holds access tokens for user credentials
+ */
+trait AccessIssuer[A, B] extends Service[AccessRequest[A], AccessResponse[B]]

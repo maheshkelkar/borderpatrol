@@ -26,22 +26,17 @@ import com.twitter.finagle.httpx.{Request, Response}
 /**
  * This encapsulates the notion of an identifier that the AccessIssuer can understand.
  * In the case of OAuth2 we would wrap a the Access Token grant, or for SAML we would wrap the SAML token, then we
- * hand this off to the [[com.lookout.borderpatrol.auth.Access.AccessIssuer AccessIssuer]]
+ * hand this off to the [[com.lookout.borderpatrol.auth.AccessIssuer AccessIssuer]]
  */
-trait Identity[A] {
-  val id: A
-}
+trait Identity[+A]
+case object EmptyIdentity extends Identity[Nothing]
+case class Id[+A](id: A) extends Identity[A]
+
 object Identity {
   def apply[A](a: A): Identity[A] =
-    new Identity[A] {val id = a}
+    Id(a)
 }
 
-
-/**
- * A response to the user that informs them what to do next when they try to access a protected resource
- * Example: In the case of SAML it would be an http redirect to their IdP
- */
-case class IdentityRequired(rep: Response, id: ServiceIdentifier)
 
 /**
  * A request to gain an `Identity`, e.g. email/password credentials
