@@ -1,5 +1,7 @@
 package com.lookout.borderpatrol.server
 
+import java.net.InetSocketAddress
+
 import cats.data.Xor
 import com.lookout.borderpatrol.server.models.ServiceIdentifier
 import com.lookout.borderpatrol.sessionx._
@@ -18,7 +20,7 @@ class ServerConfig(
   sessionStore: SessionStore,
 
   // {"memcachedServer": ["localhost:1234"]}
-  memcachedServers: List[String],
+  memcachedServers: Seq[InetSocketAddress],
 
   // [{"name":"one","path":"/customer1","subdomain":"customer1"}]
   serviceIdentifiers: Set[ServiceIdentifier]
@@ -34,7 +36,7 @@ object ServerConfig {
     sessionStoreStr: String,
 
     // {"memcachedServer": ["localhost:1234"]}
-    memcachedServers: List[String],
+    memcachedServers: Seq[InetSocketAddress],
 
     // [{"name":"one","path":"/customer1","subdomain":"customer1"}]
     serviceIdsFile: String): ServerConfig = {

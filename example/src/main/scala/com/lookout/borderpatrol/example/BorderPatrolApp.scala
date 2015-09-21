@@ -1,5 +1,7 @@
 package com.lookout.borderpatrol.example
 
+import java.net.InetSocketAddress
+
 import com.lookout.borderpatrol.server.ServerConfig
 import com.twitter.finagle.Httpx
 import com.twitter.util.Await
@@ -14,7 +16,8 @@ object BorderPatrolApp extends App {
   val serviceIdsFile = flags("serviceids-file", "bpSids.json",
     "Filename to read Service Identifiers in JSON format")
 
-  val memcachedServers = flags("memcached-servers", ("localhost:1234"),
+  val memcachedServers = flags("memcached-servers",
+    Seq(new InetSocketAddress("localhost", 11211)),
     "Comma separated list of Memcached Server URIs")
 
   val sessionStoreStr = flags("sessionStore", "memory",
@@ -28,7 +31,7 @@ object BorderPatrolApp extends App {
 
   // Instantiate a ServerConfig
   val globalServerConfig = ServerConfig(secretStoreStr(), sessionStoreStr(),
-    memcachedServers().split(",").toList, serviceIdsFile())
+    memcachedServers(), serviceIdsFile())
 
   // Launch the Server
   val server = Httpx.serve(":8080", routes.toService)

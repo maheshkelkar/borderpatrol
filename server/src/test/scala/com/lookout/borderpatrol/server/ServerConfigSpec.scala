@@ -1,10 +1,12 @@
 package com.lookout.borderpatrol.server
 
+import java.net.InetSocketAddress
+
 import com.lookout.borderpatrol.sessionx.ConfigError
-import com.lookout.borderpatrol.test.BorderPatrolSuite
+import org.scalatest.{OptionValues, TryValues, Matchers, FlatSpec}
 import scala.reflect.io.File
 
-class ServerConfigSpec extends BorderPatrolSuite {
+class ServerConfigSpec extends FlatSpec with Matchers with TryValues with OptionValues {
 
   val validContents = "[{\"name\":\"one\",\"path\": {\"str\" : \"/customer1\"},\"subdomain\":\"customer1\"}]"
   val tempValidFile = File.makeTemp("ServerConfigValid", ".tmp")
@@ -17,34 +19,38 @@ class ServerConfigSpec extends BorderPatrolSuite {
   behavior of "ServerConfig"
 
   it should "default works" in {
-    val serverConfig = ServerConfig("memory", "memory", List("url1"), tempValidFile.toCanonical.toString)
+    val serverConfig = ServerConfig("memory", "memory", Seq(new InetSocketAddress("localhost", 11211)),
+      tempValidFile.toCanonical.toString)
     serverConfig should not be null
   }
 
   it should "Invalid SecretStore raises an exception" in {
     val caught = the [ConfigError] thrownBy {
-      ServerConfig("badstore", "memory", List("url1"), tempValidFile.toCanonical.toString)
+      ServerConfig("badstore", "memory", Seq(new InetSocketAddress("localhost", 11211)),
+        tempValidFile.toCanonical.toString)
     }
     caught.getMessage should equal ("Invalid SecretStore")
   }
 
   it should "Invalid SessionStore raises an exception" in {
     val caught = the [ConfigError] thrownBy {
-      ServerConfig("memory", "badstore", List("url1"), tempValidFile.toCanonical.toString)
+      ServerConfig("memory", "badstore", Seq(new InetSocketAddress("localhost", 11211)),
+        tempValidFile.toCanonical.toString)
     }
     caught.getMessage should equal ("Invalid SessionStore")
   }
 
   it should "Invalid Filename for ServiceIdentifiers raises an exception" in {
     val caught = the [java.io.FileNotFoundException] thrownBy {
-      ServerConfig("memory", "memory", List("url1"), "badfilename")
+      ServerConfig("memory", "memory", Seq(new InetSocketAddress("localhost", 11211)), "badfilename")
     }
     caught.getMessage should equal ("badfilename (No such file or directory)")
   }
 
   it should "Failure to decode list of ServiceIdentifiers raises an exception" in {
     val caught = the [ConfigError] thrownBy {
-      ServerConfig("memory", "memory", List("url1"), tempInvalidFile.toCanonical.toString)
+      ServerConfig("memory", "memory", Seq(new InetSocketAddress("localhost", 11211)),
+        tempInvalidFile.toCanonical.toString)
     }
     caught.getMessage should equal ("ParsingFailure: expected true got t (line 1, column 1)")
   }

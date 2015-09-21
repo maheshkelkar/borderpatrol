@@ -1,7 +1,8 @@
 package com.lookout.borderpatrol.server
 
 import com.lookout.borderpatrol.server.models.ServiceIdentifier
-import com.lookout.borderpatrol.test.BorderPatrolSuite
+import org.scalatest.{OptionValues, TryValues, Matchers, FlatSpec}
+
 import com.twitter.finagle.httpx.{RequestBuilder, Request}
 import com.twitter.finagle.httpx.path.Path
 import com.twitter.util.Await
@@ -9,7 +10,7 @@ import io.finch.response.Ok
 import io.finch.route._
 import ServiceMatchers._
 
-class ServiceMatchersSpec extends BorderPatrolSuite {
+class ServiceMatchersSpec extends FlatSpec with Matchers with TryValues with OptionValues {
 
   val one = ServiceIdentifier("one", Path("/ent"), "enterprise")
   val two = ServiceIdentifier("two", Path("/api"), "api")
