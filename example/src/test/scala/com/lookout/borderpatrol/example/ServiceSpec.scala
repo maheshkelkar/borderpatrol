@@ -1,22 +1,20 @@
 package com.lookout.borderpatrol.example
 
 import java.util
-import java.util.NoSuchElementException
+//import java.util.NoSuchElementException
 
-import com.lookout.borderpatrol.sessionx.SecretStores.InMemorySecretStore
-import com.lookout.borderpatrol.sessionx.SessionId.SessionIdInjections
+//import com.lookout.borderpatrol.sessionx.SecretStores.InMemorySecretStore
+//import com.lookout.borderpatrol.sessionx.SessionId.SessionIdInjections
 import com.lookout.borderpatrol.sessionx._
 import com.twitter.finagle.httpx._
 import com.twitter.util._
 import org.scalatest.{OptionValues, TryValues, Matchers, FlatSpec}
-import io.finch.response.{Forbidden, ResponseBuilder, Ok}
+//import io.finch.response.{Forbidden, ResponseBuilder, Ok}
 
 import com.lookout.borderpatrol.example.service._
 
 class ServiceSpec extends FlatSpec with Matchers with TryValues with OptionValues {
   import reader._
-
-  import com.lookout.borderpatrol.sessionx.crypto.Generator.{EntropyGenerator => Entropy}
 
   def identity[A](id: SessionId)(implicit ev: SessionIdEncoder[A]): A =
     ev.encode(id)
@@ -75,51 +73,5 @@ class ServiceSpec extends FlatSpec with Matchers with TryValues with OptionValue
     val response = loginService(request)
     Await.result(response).status should be (Status.Unauthorized)
   }
-
-//  it should "loginService passes1 the username and password" in {
-//
-//    val ux = "test@example.com"
-//    val px = "test"
-//    val uri = Request.queryString("/", ("username" -> ux), ("password" -> px), ("s" -> "login"))
-//    val id = nextSessionId
-//    println("SESSIONID: " + id.toString)
-//    val cooki = identity[Cookie](id)
-//    println("COOKIE: " + cooki.toString)
-//    //val cooki = SessionId.as[Cookie](sessionid.next)
-//    //SessionId.toCookie(Await.result(SessionId.next))
-//
-//    val my_session = Session(id, "mvk")
-//    sessionStore.update[String](my_session)
-//
-//    val request = Request(Method.Post, uri)
-//    request.addCookie(cooki)
-//    println("REQUEST: " + request.toString())
-//
-//    //
-//    //
-//    //    println("1. id: " + id.toString)
-//    //    val cooki_val_str = SessionId.toBase64(id)
-//    //    println("2. cooki_val_str: " + cooki_val_str)
-//    //    val ind_seq = SessionIdInjections.str2seq(cooki_val_str)
-//    //    println("3. ind_seq: " + ind_seq.toString)
-//    //    val try_sess_Id = SessionIdInjections.seq2SessionId(ind_seq)
-//    //    println("4. try_sess_Id: " + try_sess_Id.toString)
-//    //    val sess_Id = try_sess_Id.get
-//    //    println("5. sess_Id: " + sess_Id.toString)
-//    //
-//    //    val byte = 1
-//    //    println ("Lookup1: " + secretStore.find({ sec => println("inside secret, id = " + sec.id.toString); sec.id == byte }).toString)
-//    //    id should be equals(sess_Id)
-//
-//
-//    //val sessId = SessionId()
-//    //SessionIdEncoder[Cookie].encode()
-//    println("***MVK " + uri)
-//    val fut_response = loginService(request)
-//    val response = Await.result(fut_response)
-//    println("***MVK: response = " + response.toString)
-//    //Await.result(response).getStatusCode() should be (Status.Ok)
-//    Await.result(fut_response).status should be (Status.TemporaryRedirect)
-//  }
 
 }
