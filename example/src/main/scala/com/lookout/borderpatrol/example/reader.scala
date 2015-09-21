@@ -35,8 +35,9 @@ object reader {
 
   import model._
 
+  // Local copy of the SessionStore
   implicit val secretStore = SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
-  implicit val sessionStore = SessionStore.InMemoryStore
+  implicit val sessionStore = SessionStores.InMemoryStore
 
   implicit val sessionIdDecoder: DecodeRequest[SessionId] =
     DecodeRequest[SessionId](s => UtilBijections.twitter2ScalaTry.inverse(SessionId.from[String](s)))

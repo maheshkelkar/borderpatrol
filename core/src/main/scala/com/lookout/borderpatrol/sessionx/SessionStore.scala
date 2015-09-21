@@ -19,7 +19,7 @@ trait SessionStore {
  * Default implementations of [[com.lookout.borderpatrol.sessionx.SessionStore SessionStore]] with
  * [[com.twitter.finagle.memcachedx memcachedx]] and an in-memory store for mocking
  */
-object SessionStore {
+object SessionStores {
 
   /**
    * Memcached backend to [[com.lookout.borderpatrol.sessionx.SessionStore SessionStore]]
@@ -33,7 +33,7 @@ object SessionStore {
    * @param store finagle [[com.twitter.finagle.memcachedx.BaseClient memcachedx.BaseClient]] memcached backend
    */
   case class MemcachedStore(store: memcachedx.BaseClient[Buf])
-      extends SessionStore {
+      extends  SessionStore {
     val flag = 0 // ignored flag required by memcached api
 
     /**

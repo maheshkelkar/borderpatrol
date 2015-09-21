@@ -37,6 +37,9 @@ val baseSettings = Seq(
     "com.twitter" %% "bijection-core" % "0.8.1",
     "com.twitter" %% "bijection-util" % "0.8.1",
     "io.argonaut" %% "argonaut" % "6.1",
+    "io.circe" %% "circe-core" % "0.1.1",
+    "io.circe" %% "circe-generic" % "0.1.1",
+    "io.circe" %% "circe-jawn" % "0.1.1",
     "org.bouncycastle" % "bcprov-jdk15on" % "1.52",
     compilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
   ) ++ testDependencies.map(_ % "test"),
@@ -91,7 +94,7 @@ lazy val root = project.in(file("."))
         |import com.lookout.borderpatrol.auth._
       """.stripMargin
     )
-  .aggregate(core, example, security, auth)
+  .aggregate(core, example, security, auth, server)
   .dependsOn(core)
 
 lazy val core = project
@@ -118,7 +121,7 @@ lazy val example = project
     )
   )
   .disablePlugins(JmhPlugin)
-  .dependsOn(core)
+  .dependsOn(core, server)
 
 lazy val security = project
   .settings(moduleName := "borderpatrol-security")
