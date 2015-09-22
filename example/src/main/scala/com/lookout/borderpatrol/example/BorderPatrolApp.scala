@@ -13,24 +13,33 @@ object BorderPatrolApp extends App {
 
   val flags = new Flags("Border Patrol Config Flags")
 
-  val serviceIdsFile = flags("serviceids-file", "bpSids.json",
-    "Filename to read Service Identifiers in JSON format")
+  val secretStoreServers = flags("secretStore-servers",
+    Seq[InetSocketAddress](),
+    "Comma separated list of Secret store Server URIs. Overrides the in-memory setting.")
+
+  val inMemorySecretStore = flags("use-InMemorySecretStore", false,
+    "Use in-memory Secret store. ")
+
+  val sessionStoreServers = flags("sessionStore-servers",
+    Seq[InetSocketAddress](),
+    "Comma separated list of Session store Server URIs. Overrides the in-memory setting.")
+
+  val inMemorySessionStore = flags("use-InMemorySessionStore", false,
+    "Use in-memory Session store")
 
   val memcachedServers = flags("memcached-servers",
     Seq(new InetSocketAddress("localhost", 11211)),
     "Comma separated list of Memcached Server URIs")
 
-  val sessionStoreStr = flags("sessionStore", "memory",
-    "Specify type of Session Store. Options: memory or memcached")
-
-  val secretStoreStr = flags("secretStore", "memory",
-    "Specify type of Secret Store. Options: memory or memcached")
+  val serviceIdsFile = flags("serviceids-file", "bpSids.json",
+    "Filename to read Service Identifiers in JSON format")
 
   // Scan args
   flags.parseOrExit1(args)
 
   // Instantiate a ServerConfig
-  val globalServerConfig = ServerConfig(secretStoreStr(), sessionStoreStr(),
+  val globalServerConfig = ServerConfig(secretStoreServers(), inMemorySecretStore(),
+    sessionStoreServers(), inMemorySessionStore(),
     memcachedServers(), serviceIdsFile())
 
   // Launch the Server

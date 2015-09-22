@@ -6,51 +6,54 @@ import cats.data.Xor
 import com.lookout.borderpatrol.server.models.ServiceIdentifier
 import com.lookout.borderpatrol.sessionx._
 import com.twitter.finagle.httpx.path.Path
-import com.twitter.finagle.memcachedx
+import com.twitter.finagle._
+import com.twitter.hashing.KeyHasher
 import io.circe.{Encoder, _}
 import io.circe.jawn._
 import io.circe.generic.auto._ // DO NOT REMOVE
 import scala.io.Source
 
 class ServerConfig(
-  // {"secretStore": "memory"} or {"secretStore": "memcached"}
-  secretStore: SecretStoreApi,
-
-  // {"sessionStore": "memory"} or {"sessionStore": "memcached"}
-  sessionStore: SessionStore,
-
-  // {"memcachedServer": ["localhost:1234"]}
+  secretStoreServers: SecretStoreApi,
+  sessionStoreServers: SessionStore,
   memcachedServers: Seq[InetSocketAddress],
-
-  // [{"name":"one","path":"/customer1","subdomain":"customer1"}]
   serviceIdentifiers: Set[ServiceIdentifier]
 )
 
 object ServerConfig {
 
   def apply(
-    // {"secretStore": "memory"} or {"secretStore": "memcached"}
-    secretStoreStr: String,
+    // {"secretStoreServers": ["localhost:1234"]}
+    secretStoreServers: Seq[InetSocketAddress],
 
-    // {"sessionStore": "memory"} or {"sessionStore": "memcached"}
-    sessionStoreStr: String,
+    // {"inMemorySecretStore": true}
+    inMemorySecretStore: Boolean,
 
-    // {"memcachedServer": ["localhost:1234"]}
+    // {"sessionStoreServers": ["localhost:1234"]}
+    sessionStoreServers: Seq[InetSocketAddress],
+
+    // {"inMemorySessionStore": true}
+    inMemorySessionStore: Boolean,
+
+    // {"memcachedServers": ["localhost:1234"]}
     memcachedServers: Seq[InetSocketAddress],
 
     // [{"name":"one","path":"/customer1","subdomain":"customer1"}]
     serviceIdsFile: String): ServerConfig = {
 
     // Secret Store
-    val secretStore = secretStoreStr match {
-      case "memory" => SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
+    println("secretStoreServers: " + secretStoreServers.toString())
+    println("inMemorySecretStore: " + inMemorySecretStore)
+    val secretStore = secretStoreServers match {
+      case a if a.isEmpty && inMemorySecretStore => SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
       case _ => throw new ConfigError("Invalid SecretStore")
     }
 
     // Session store
-    val sessionStore : SessionStore = sessionStoreStr match {
-      case "memory" => SessionStores.InMemoryStore
-      case "memcached" => SessionStores.MemcachedStore(new memcachedx.MockClient())
+    val sessionStore = sessionStoreServers match {
+      case a if a.nonEmpty => SessionStores.MemcachedStore(new memcachedx.MockClient())
+      //MemcachedxClient.newKetamaClient(Group(b), KeyHasher.KETAMA, true))
+      case b if b.isEmpty && inMemorySessionStore => SessionStores.InMemoryStore
       case _ => throw new ConfigError("Invalid SessionStore")
     }
 

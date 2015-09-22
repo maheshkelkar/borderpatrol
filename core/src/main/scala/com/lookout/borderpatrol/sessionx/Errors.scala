@@ -16,5 +16,3 @@ case class SessionStoreError(msg: String)
 
 case class SecretDecodeError(msg: String)
     extends SessionError(s"An error decoding a Secret occurred: $msg")
-
-class ConfigError(val message: String) extends Exception(message, null)
