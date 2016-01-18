@@ -204,4 +204,4 @@ lazy val server = project
       "com.twitter" %% "finagle-stats" % finagleVersion
     )
   )
-  .dependsOn(core % "test->test;compile->compile", auth)
+  .dependsOn(core % "test->test;compile->compile", auth, security)

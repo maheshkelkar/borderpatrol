@@ -222,28 +222,4 @@ object Keymaster {
         Future.value(t)
       }).map(t => KeymasterAccessRes(Access(t)))
   }
-
-  /**
-   *  Keymaster Identity provider service Chain
-   * @param store
-   */
-  def keymasterIdentityProviderChain(store: SessionStore)(
-    implicit secretStoreApi: SecretStoreApi, statsReceiver: StatsReceiver): Service[SessionIdRequest, Response] =
-      LoginManagerFilter(LoginManagerBinder) andThen
-        KeymasterTransformFilter(new OAuth2CodeVerify) andThen
-        KeymasterPostLoginFilter(store) andThen
-        KeymasterIdentityProvider(ManagerBinder)
-
-
-  /**
-   * Keymaster Access Issuer service Chain
-   * @param store
-   */
-  def keymasterAccessIssuerChain(store: SessionStore)(
-    implicit secretStoreApi: SecretStoreApi, statsReceiver: StatsReceiver): Service[SessionIdRequest, Response] =
-      RewriteFilter() andThen
-        IdentityFilter[Tokens](store) andThen
-        AccessFilter[Tokens, ServiceToken](ServiceIdentifierBinder) andThen
-        KeymasterAccessIssuer(ManagerBinder, store)
-
 }
