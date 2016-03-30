@@ -39,6 +39,7 @@ class ConfigSpec extends BorderPatrolSuite {
   val healthCheckUrls = Set(HealthCheckUrlConfig("node1", new URL("http://localhost:1234")))
 
   // Configs
+  val duplicateProCheckpointSid = ServiceIdentifier("checkpoint", urls, Path("/check/this"), None, true)
   val serverConfig = ServerConfig(bpPort, defaultSecretStore, defaultSessionStore, defaultStatsdExporterConfig,
     healthCheckUrls, cids, sids, loginManagers, Set(keymasterIdManager), Set(keymasterAccessManager))
   val serverConfig1 = ServerConfig(bpPort, consulSecretStore, memcachedSessionStore, defaultStatsdExporterConfig,
@@ -329,7 +330,7 @@ class ConfigSpec extends BorderPatrolSuite {
         ("defaultServiceIdentifier", "bad".asJson),
         ("loginManager", "checkpoint".asJson))))),
       ("serviceIdentifiers", sids.asJson),
-      ("loginManagers", Set(checkpointLoginManager).asJson),
+      ("loginManagers", loginManagers.asJson),
       ("identityManagers", Set(keymasterIdManager).asJson),
       ("accessManagers", Set(keymasterAccessManager).asJson)))
 
@@ -343,6 +344,28 @@ class ConfigSpec extends BorderPatrolSuite {
       "ServiceIdentifier \"bad\" not found:failed to decode following field(s): customerIdentifiers")
   }
 
+  it should "raise a BpConfigError exception due to missing protected ServiceIdentifier in CustomerIdentifier config" in {
+    val partialContents = Json.fromFields(Seq(
+      ("listeningPort", bpPort.asJson),
+      ("secretStore", defaultSecretStore.asInstanceOf[SecretStoreApi].asJson),
+      ("sessionStore", defaultSessionStore.asInstanceOf[SessionStore].asJson),
+      ("statsdReporter", defaultStatsdExporterConfig.asJson),
+      ("customerIdentifiers", cids.asJson),
+      ("serviceIdentifiers", Set(one, oneTwo, two, three, unproCheckpointSid).asJson),
+      ("loginManagers", loginManagers.asJson),
+      ("identityManagers", Set(keymasterIdManager).asJson),
+      ("accessManagers", Set(keymasterAccessManager).asJson)))
+
+    val tempFile = File.makeTemp("ServerConfigTest", ".tmp")
+    tempFile.writeAll(partialContents.toString)
+
+    val caught = the [BpConfigError] thrownBy {
+      readServerConfig(tempFile.toCanonical.toString)
+    }
+    caught.getMessage should include (
+      "ServiceIdentifier \"checkpoint\" not found:failed to decode following field(s): customerIdentifiers")
+  }
+
   it should "raise a BpConfigError exception due to lack of ServiceIdentifier config" in {
     val partialContents = Json.fromFields(Seq(
       ("listeningPort", bpPort.asJson),
@@ -350,7 +373,7 @@ class ConfigSpec extends BorderPatrolSuite {
       ("sessionStore", defaultSessionStore.asInstanceOf[SessionStore].asJson),
       ("statsdReporter", defaultStatsdExporterConfig.asJson),
       ("customerIdentifiers", cids.asJson),
-      ("loginManagers", Set(checkpointLoginManager).asJson),
+      ("loginManagers", loginManagers.asJson),
       ("identityManagers", Set(keymasterIdManager).asJson),
       ("accessManagers", Set(keymasterAccessManager).asJson)))
 
@@ -525,7 +548,8 @@ class ConfigSpec extends BorderPatrolSuite {
       ("sessionStore", defaultSessionStore.asInstanceOf[SessionStore].asJson),
       ("statsdReporter", defaultStatsdExporterConfig.asJson),
       ("customerIdentifiers", (cids + CustomerIdentifier("enterprise", two, checkpointLoginManager)).asJson),
-      ("serviceIdentifiers", (sids + ServiceIdentifier("some", urls, Path("/ent"), None, false)).asJson),
+      ("serviceIdentifiers", (sids + duplicateProCheckpointSid +
+        ServiceIdentifier("some", urls, Path("/ent"), None, false)).asJson),
       ("loginManagers", loginManagers.asJson),
       ("identityManagers", Set(keymasterIdManager).asJson),
       ("accessManagers", Set(keymasterAccessManager).asJson)))

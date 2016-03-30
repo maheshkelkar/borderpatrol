@@ -10,6 +10,7 @@ import com.twitter.finagle.Memcached
 import com.twitter.finagle.http.path.Path
 import com.twitter.app.App
 import cats.data.Xor
+import com.twitter.logging.Logger
 import io.circe.{Encoder, _}
 import io.circe.jawn._
 import io.circe.generic.auto._
@@ -52,6 +53,7 @@ object Config {
   val defaultConfigFile = "bpConfig.json"
   val defaultSecretStore = SecretStores.InMemorySecretStore(Secrets(Secret(), Secret()))
   val defaultSessionStore = SessionStores.InMemoryStore
+  private[this] val log = Logger.get(getClass.getPackage.getName)
 
   def cond[T](p: => Boolean, v: T) : Set[T] = if (p) Set(v) else Set.empty[T]
 
@@ -240,7 +242,8 @@ object Config {
         decodeLoginManager(ims.map(im => im.name -> im).toMap, ams.map(am => am.name -> am).toMap), implicitly))
       sids <- c.downField("serviceIdentifiers").as[Set[ServiceIdentifier]]
       cids <- c.downField("customerIdentifiers").as(Decoder.decodeCanBuildFrom[CustomerIdentifier, Set](
-        decodeCustomerIdentifier(sids.map(sid => sid.name -> sid).toMap, lms.map(lm => lm.name -> lm).toMap),
+        decodeCustomerIdentifier(sids.filter(_.protekted).map(sid => sid.name -> sid).toMap,
+          lms.map(lm => lm.name -> lm).toMap),
         implicitly))
     } yield ServerConfig(listeningPort, secretStore, sessionStore, statsdExporterConfig,
       healthCheckUrlConfigSet, cids, sids, lms, ims, ams)
@@ -314,6 +317,11 @@ object Config {
    * @return set of all the errors encountered during validation
    */
   def validateServiceIdentifierConfig(field: String, sids: Set[ServiceIdentifier]): Set[String] = {
+    // Log an info message if ServiceIdentifiers have duplicate entries for combination of (name, protected)
+    if (sids.size > sids.map(sid => (sid.name, sid.protekted)).size)
+      log.info("Potential Configuration Error Alert: " +
+        "Duplicate entries found for a pair ('name', 'protected') in the field: ServiceIdentifiers")
+
     // Find if ServiceIdentifiers have duplicate entries (same path)
     (cond(sids.size > sids.map(sid => sid.path).size,
       s"Duplicate entries for key (path) are found in the field: ${field}") ++
