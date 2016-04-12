@@ -1,7 +1,7 @@
 package com.lookout.borderpatrol.auth
 
 import com.lookout.borderpatrol.sessionx.SignedId
-import com.twitter.finagle.http.Status
+import com.twitter.finagle.http.{Cookie, Status}
 
 
 // scalastyle:off null
@@ -38,7 +38,7 @@ case class BpAccessIssuerError(status: Status, msg: String) extends BpAuthError(
 /**
  * This exception stores the response code
  */
-case class BpRedirectError(status: Status, location: String, sessionIdOpt: Option[SignedId], msg: String)
+case class BpRedirectError(status: Status, location: String, cookies: Set[Cookie], msg: String)
     extends BpAuthError(msg)
 
 /**

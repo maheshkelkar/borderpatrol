@@ -86,10 +86,10 @@ object Keymaster {
   }
 
   /**
-   * Handles Keymaster transforms for internal and OAuth2
+   * Handles Keymaster transforms (incoming request into Keymaster specific request) for internal and OAuth2
    */
   case class KeymasterTransformFilter(oAuth2CodeVerify: OAuth2CodeVerify)(implicit statsReceiver: StatsReceiver)
-      extends Filter[BorderRequest, Response, KeymasterIdentifyReq, Response] {
+      extends Filter[BorderRequest, Response, KeymasterIdentifyReq, RedirectResponse] {
 
     def transformInternal(req: BorderRequest): Future[InternalAuthCredential] = {
       (for {
@@ -109,14 +109,14 @@ object Keymaster {
     }
 
     def apply(req: BorderRequest,
-              service: Service[KeymasterIdentifyReq, Response]): Future[Response] = {
+              service: Service[KeymasterIdentifyReq, RedirectResponse]): Future[Response] = {
       for {
         transformed: Credential <- req.customerId.loginManager.protoManager match {
           case a: InternalAuthProtoManager => transformInternal(req)
           case b: OAuth2CodeProtoManager => transformOAuth2(req, b)
         }
-        resp <- service(KeymasterIdentifyReq(req, transformed))
-      } yield resp
+        redirectResp <- service(KeymasterIdentifyReq(req, transformed))
+      } yield throw BpRedirectError(redirectResp.status, redirectResp.location, redirectResp.cookies, redirectResp.msg)
     }
   }
 
@@ -130,7 +130,7 @@ object Keymaster {
    */
   case class KeymasterPostLoginFilter(store: SessionStore)
                                      (implicit secretStoreApi: SecretStoreApi, statsReceiver: StatsReceiver)
-      extends Filter[KeymasterIdentifyReq, Response, IdentifyRequest[Credential], IdentifyResponse[Tokens]] {
+      extends Filter[KeymasterIdentifyReq, RedirectResponse, IdentifyRequest[Credential], IdentifyResponse[Tokens]] {
     private[this] val log = Logger.get(getClass.getPackage.getName)
     private[this] val statSessionAuthenticated = statsReceiver.counter("keymaster.session.authenticated")
 
@@ -144,7 +144,7 @@ object Keymaster {
       }
 
     def apply(req: KeymasterIdentifyReq,
-              service: Service[IdentifyRequest[Credential], IdentifyResponse[Tokens]]): Future[Response] = {
+              service: Service[IdentifyRequest[Credential], IdentifyResponse[Tokens]]): Future[RedirectResponse] = {
       for {
           tokenResponse <- service(req)
           session <- Session(tokenResponse.identity.id, AuthenticatedTag)
@@ -153,10 +153,9 @@ object Keymaster {
           _ <- store.delete(req.sessionId)
         } yield {
           statSessionAuthenticated.incr
-          throw BpRedirectError(Status.Ok, originReq.uri, Some(session.id),
+          RedirectResponse(Status.Ok, originReq.uri, Set(session.id.asCookie()),
             s"Session: ${req.sessionId.toLogIdString}} is authenticated, " +
-              s"allocated new Session: ${session.id.toLogIdString} and redirecting to " +
-              s"location: ${originReq.uri}")
+              s"allocated new Session: ${session.id.toLogIdString} and redirecting to location: ${originReq.uri}")
         }
     }
   }

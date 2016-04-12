@@ -41,10 +41,17 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
   def getTokensFromSessionId(sid: SignedId): Future[Tokens] =
     (for {
       sessionMaybe <- sessionStore.get[Tokens](sid)
-    } yield sessionMaybe.fold[Identity[Tokens]](EmptyIdentity)(s => Id(s.data))).map(i => i match {
+    } yield sessionMaybe.fold[Identity[Tokens]](EmptyIdentity)(s => Id(s.data))).map {
       case Id(tokens) => tokens
       case EmptyIdentity => null
-    })
+    }
+
+  // Method to decode SessionData from the sessionId in Cookie
+  def getTokensFromCookie(cookie: Cookie): Future[Tokens] =
+    for {
+      sessionId <- SignedId.from[Cookie](cookie).toFuture
+      toks <- getTokensFromSessionId(sessionId)
+    } yield toks
 
   val keymasterLoginFilterTestService = mkTestService[IdentifyRequest[Credential], IdentifyResponse[Tokens]] {
     req => Future(KeymasterIdentifyRes(tokens)) }
@@ -156,7 +163,7 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
   behavior of "KeymasterTransformFilter"
 
   it should "succeed and transform the username and password to Keymaster Credential" in {
-    val testService = mkTestService[KeymasterIdentifyReq, Response] {
+    val testService = mkTestService[KeymasterIdentifyReq, RedirectResponse] {
       req =>
         assert(req.credential.serviceId == one)
         assert(req.serviceId == one)
@@ -164,7 +171,7 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
           case a: InternalAuthCredential => assert(a.uniqueId == "test@example.com")
           case _ => assert(false)
         }
-        Future(Response(Status.Ok))
+        Future(RedirectResponse(Status.Ok, "/loc", Set(), "test message"))
     }
 
     // Allocate and Session
@@ -178,11 +185,15 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
       BorderRequest(loginRequest, cust1, one, sessionId))
 
     // Validate
-    Await.result(output).status should be(Status.Ok)
+    val caught = the [BpRedirectError] thrownBy {
+      Await.result(output)
+    }
+    caught.status should be(Status.Ok)
+    caught.location should be("/loc")
   }
 
   it should "succeed and transform the oAuth2 code to Keymaster Credential" in {
-    val testService = mkTestService[KeymasterIdentifyReq, Response] {
+    val testService = mkTestService[KeymasterIdentifyReq, RedirectResponse] {
       req =>
         assert(req.credential.serviceId == two)
         assert(req.serviceId == two)
@@ -190,7 +201,7 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
           case a: OAuth2CodeCredential => assert(a.uniqueId == "test@example.com")
           case _ => assert(false)
         }
-        Future(Response(Status.Ok))
+        Future(RedirectResponse(Status.Ok, "/loc", Set(), "test message"))
     }
 
     val idToken = new PlainJWT(new JWTClaimsSet.Builder().subject("SomeIdToken")
@@ -214,11 +225,16 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
     val output = (KeymasterTransformFilter(mockVerify) andThen testService)(sessionIdRequest)
 
     // Validate
-    Await.result(output).status should be(Status.Ok)
+    val caught = the [BpRedirectError] thrownBy {
+      Await.result(output)
+    }
+    caught.status should be(Status.Ok)
   }
 
   it should "return BpBadRequest Status if username or password is not present in the Request" in {
-    val testService = mkTestService[KeymasterIdentifyReq, Response] { request => Future(Response(Status.Ok)) }
+    val testService = mkTestService[KeymasterIdentifyReq, RedirectResponse] { request =>
+      Future(RedirectResponse(Status.Ok, "/loc", Set(), "test message"))
+    }
 
     // Allocate and Session
     val sessionId = sessionid.untagged
@@ -264,15 +280,11 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
       KeymasterIdentifyReq(BorderRequest(loginRequest, cust1, one, sessionId), credential))
 
     // Validate
-    val caught = the [BpRedirectError] thrownBy {
-      Await.result(output)
-    }
-
-    // Validate
-    caught.status should be(Status.Ok)
-    caught.location should be equals ("/dang")
-    caught.sessionIdOpt should not be (Some(sessionId))
-    val tokensz = getTokensFromSessionId(caught.sessionIdOpt.get)
+    Await.result(output).status should be(Status.Ok)
+    Await.result(output).location should be equals ("/dang")
+    Await.result(output).cookies.headOption should not be None
+    Await.result(output).cookies.head should not be (sessionId)
+    val tokensz = getTokensFromCookie(Await.result(output).cookies.head)
     Await.result(tokensz) should be(tokens)
   }
 
@@ -301,15 +313,11 @@ class KeymasterSpec extends BorderPatrolSuite with MockitoSugar {
       KeymasterIdentifyReq(BorderRequest(loginRequest, cust2, two, sessionId), credential))
 
     // Validate
-    val caught = the [BpRedirectError] thrownBy {
-      Await.result(output)
-    }
-
-    // Validate
-    caught.status should be(Status.Ok)
-    caught.location should be equals ("/umb")
-    caught.sessionIdOpt should not be (Some(sessionId))
-    val tokensz = getTokensFromSessionId(caught.sessionIdOpt.get)
+    Await.result(output).status should be(Status.Ok)
+    Await.result(output).location should be equals ("/umb")
+    Await.result(output).cookies.headOption should not be None
+    Await.result(output).cookies.head should not be (sessionId)
+    val tokensz = getTokensFromCookie(Await.result(output).cookies.head)
     Await.result(tokensz) should be(tokens)
   }
 

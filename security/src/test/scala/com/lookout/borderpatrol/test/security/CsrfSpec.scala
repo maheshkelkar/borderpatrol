@@ -1,11 +1,14 @@
 package com.lookout.borderpatrol.test.security
 
+import com.lookout.borderpatrol.auth.RedirectResponse
 import com.lookout.borderpatrol.security.Csrf._
 import com.lookout.borderpatrol.security.{CsrfInsertFilter, CsrfVerifyFilter}
+import com.lookout.borderpatrol.sessionx.SignedId
 import com.lookout.borderpatrol.test._
 import com.twitter.finagle.Service
 import com.twitter.finagle.http.{Response, Cookie, Request, Status}
 import com.twitter.util.{Await, Future}
+
 
 class CsrfSpec extends BorderPatrolSuite {
   import sessionx.helpers.{secretStore => store, _}
@@ -14,7 +17,7 @@ class CsrfSpec extends BorderPatrolSuite {
   val csrf2 = sessionid.untagged.asBase64
 
   val (header, csrfTokenValue, cookiename, verified) = ("header", "x_csrf_token", "cookieName", "verified")
-  val verify = Verify(InHeader(header), CsrfToken(csrfTokenValue), CookieName(cookiename), VerifiedHeader(verified))
+  val verify = Verify(InHeader(header), CsrfToken(csrfTokenValue), CsrfCookie(cookiename), VerifiedHeader(verified))
 
   val filter = CsrfVerifyFilter(verify)
 
@@ -115,10 +118,19 @@ class CsrfSpec extends BorderPatrolSuite {
   behavior of "CsrfInsertFilter"
 
   it should "make an Ok response when verify sets header to true" in {
+    val testService = Service.mk[Request, RedirectResponse]{ req =>
+      Future.value(RedirectResponse(Status.Ok, "/loc", Set(sessionid.authenticated.asCookie()), "test message")) }
     val req = Request("/")
-    val output = (CsrfInsertFilter[Request](CookieName(cookiename)) andThen testOkService)(req)
 
+    // Execute
+    val output = (CsrfInsertFilter[Request](CsrfCookie(cookiename)) andThen testService)(req)
+
+    // Validate
     Await.result(output).status should be (Status.Ok)
-    Await.result(output).cookies.get(cookiename) should not be (None)
+    Await.result(output).cookies.foreach(coo =>
+      SignedId.from[Cookie](coo).isSuccess should be(true)
+    )
+    Await.result(output).cookies.find(coo => coo.name == SignedId.sessionIdCookieName) should not be(None)
+    Await.result(output).cookies.find(coo => coo.name == cookiename) should not be(None)
   }
 }

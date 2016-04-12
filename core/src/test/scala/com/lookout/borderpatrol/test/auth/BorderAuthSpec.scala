@@ -12,6 +12,8 @@ import com.twitter.finagle.memcached.GetResult
 import com.twitter.io.Buf
 import com.twitter.util.{Await, Future, Time}
 
+import scala.util.Success
+
 
 class BorderAuthSpec extends BorderPatrolSuite  {
   import sessionx.helpers.{secretStore => store, _}
@@ -26,9 +28,16 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     })
 
   // Method to decode SessionData from the sessionId in Response
-  def sessionDataFromResponse(resp: Response): Future[Request] =
+  def getRequestFromResponse(resp: Response): Future[Request] =
     for {
       sessionId <- SignedId.fromResponse(resp).toFuture
+      req <- getRequestFromSessionId(sessionId)
+    } yield req
+
+  // Method to decode SessionData from the sessionId in Response
+  def getRequestFromCookie(cookie: Cookie): Future[Request] =
+    for {
+      sessionId <- SignedId.from[Cookie](cookie).toFuture
       req <- getRequestFromSessionId(sessionId)
     } yield req
 
@@ -208,8 +217,9 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     // Validate
     caught.status should be(Status.Unauthorized)
     caught.location should be equals ("/dang")
-    caught.sessionIdOpt should not be (Some(sessionId))
-    val reqZ = getRequestFromSessionId(caught.sessionIdOpt.get)
+    caught.cookies.headOption should not be None
+    caught.cookies.head should not be (sessionId)
+    val reqZ = getRequestFromCookie(caught.cookies.head)
     Await.result(reqZ).uri should be(request.uri)
   }
 
@@ -364,7 +374,7 @@ class BorderAuthSpec extends BorderPatrolSuite  {
 
   it should "succeed and convert the BpRedirectError exception into error Response" in {
     val testService = mkTestService[Request, Response] { req =>
-      Future.exception(BpRedirectError(Status.Unauthorized, "/location", Some(sessionid.untagged),
+      Future.exception(BpRedirectError(Status.Unauthorized, "/location", Set(sessionid.untagged.asCookie()),
         "Some identity provider error"))
     }
 
@@ -379,7 +389,7 @@ class BorderAuthSpec extends BorderPatrolSuite  {
 
   it should "succeed and convert the BpRedirectError exception into error Response with json body" in {
     val testService = mkTestService[Request, Response] { req =>
-      Future.exception(BpRedirectError(Status.Unauthorized, "/location", Some(sessionid.untagged),
+      Future.exception(BpRedirectError(Status.Unauthorized, "/location", Set(sessionid.untagged.asCookie()),
         "Some identity provider error"))
     }
 
@@ -515,7 +525,7 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     // Validate
     caught.status should be(Status.Unauthorized)
     caught.location should be (internalProtoManager.authorizePath.toString)
-    caught.sessionIdOpt should be (Some(sessionId))
+    SignedId.from[Cookie](caught.cookies.head) should be (Success(sessionId))
   }
 
   it should "redirect the request w/ unauth SessionId for protected service to login page for OAuth2" in {
@@ -541,7 +551,7 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     // Validate
     caught.status should be(Status.Unauthorized)
     caught.location should startWith (oauth2CodeProtoManager.authorizeUrl.toString)
-    caught.sessionIdOpt should be (Some(sessionId))
+    SignedId.from[Cookie](caught.cookies.head) should be (Success(sessionId))
   }
 
   it should "redirect the request w/ unauth SessionId to unprotected service to follow-on service" in {
@@ -586,7 +596,7 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     // Validate
     caught.status should be(Status.Unauthorized)
     caught.location should be (internalProtoManager.authorizePath.toString)
-    caught.sessionIdOpt should be (Some(sessionId))
+    SignedId.from[Cookie](caught.cookies.head) should be (Success(sessionId))
   }
 
   it should "redirect the request w/o SessionId for protected service to login page" in {
@@ -609,8 +619,8 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     // Validate
     caught.status should be(Status.Unauthorized)
     caught.location should be (internalProtoManager.authorizePath.toString)
-    caught.sessionIdOpt should not be None
-    val reqZ = getRequestFromSessionId(caught.sessionIdOpt.get)
+    caught.cookies.headOption should not be None
+    val reqZ = getRequestFromCookie(caught.cookies.head)
     Await.result(reqZ).uri should be(request.uri)
   }
 
@@ -650,8 +660,8 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     // Validate
     caught.status should be(Status.Unauthorized)
     caught.location should be (internalProtoManager.authorizePath.toString)
-    caught.sessionIdOpt should not be None
-    val reqZ = getRequestFromSessionId(caught.sessionIdOpt.get)
+    caught.cookies.headOption should not be None
+    val reqZ = getRequestFromCookie(caught.cookies.head)
     Await.result(reqZ).uri should be(request.uri)
   }
 
@@ -892,7 +902,7 @@ class BorderAuthSpec extends BorderPatrolSuite  {
     //  Validate
     Await.result(output).status should be (Status.Ok)
     SignedId.fromResponse(Await.result(output)).isSuccess should be(true)
-    val reqZ = sessionDataFromResponse(Await.result(output))
+    val reqZ = getRequestFromResponse(Await.result(output))
     Await.result(reqZ).uri should be(cust1.defaultServiceId.path.toString)
   }
 

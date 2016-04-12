@@ -1,16 +1,18 @@
 package com.lookout.borderpatrol.security
 
+import com.lookout.borderpatrol.auth.RedirectResponse
 import com.lookout.borderpatrol.util.Combinators.tap
 import com.lookout.borderpatrol.sessionx._
 import com.lookout.borderpatrol.util.Helpers
-import com.twitter.finagle.{SimpleFilter, Service, Filter}
-import com.twitter.finagle.http.{Status, Cookie, Request, Response}
-import com.twitter.util.{Time, Future}
+import com.twitter.finagle.{SimpleFilter, Service}
+import com.twitter.finagle.http.{Request, Response}
+import com.twitter.util.Future
+
 
 object Csrf {
   case class InHeader(val header: String = "X-BORDER-CSRF") extends AnyVal
   case class CsrfToken(val value: String = "_x_border_csrf") extends AnyVal
-  case class CookieName(val name: String = "border_csrf") extends AnyVal
+  case class CsrfCookie(val name: String = "border_csrf") extends AnyVal
   case class VerifiedHeader(val header: String = "X-BORDER-CSRF-VERIFIED") extends AnyVal
 
   /**
@@ -18,12 +20,12 @@ object Csrf {
    *
    * @param header The incoming header that contains the CSRF token
    * @param csrfToken The incoming parameter that contains the CSRF token
-   * @param cookieName The cookie that contains the CSRF token
+   * @param csrfCookie The cookie that contains the CSRF token
    * @param verifiedHeader The verified header to set
    */
   case class Verify(header: InHeader,
                     csrfToken: CsrfToken,
-                    cookieName: CookieName,
+                    csrfCookie: CsrfCookie,
                     verifiedHeader: VerifiedHeader)(implicit secretStoreApi: SecretStoreApi) {
 
     /**
@@ -42,7 +44,7 @@ object Csrf {
       (for {
         str <- req.headerMap.get(header.header) orElse Helpers.scrubQueryParams(req.params, csrfToken.value)
         uid <- SignedId.from(str).toOption
-        cid <- SignedId.fromRequest(req, cookieName.name).toOption
+        cid <- SignedId.fromRequest(req, csrfCookie.name).toOption
       } yield uid == cid) getOrElse false
   }
 }
@@ -52,15 +54,15 @@ object Csrf {
  *
  * - It should be typically happen only once, perhaps after the successful login
  */
-case class CsrfInsertFilter[A](cookieName: Csrf.CookieName)(implicit secretStore: SecretStoreApi)
-    extends Filter[A, Response, A, Response] {
+case class CsrfInsertFilter[A](csrfCookie: Csrf.CsrfCookie)(implicit secretStoreApi: SecretStoreApi)
+    extends SimpleFilter[A, RedirectResponse] {
 
-  def apply(req: A, service: Service[A, Response]): Future[Response] =
+  def apply(req: A, service: Service[A, RedirectResponse]): Future[RedirectResponse] = {
     for {
-      res <- service(req)
+      redirectResp <- service(req)
       csrfId <- SignedId.authenticated
-      _ <- res.addCookie(csrfId.asCookie(cookieName.name)).toFuture
-    } yield res
+    } yield redirectResp.add(csrfId.asCookie(csrfCookie.name))
+  }
 }
 
 /**
@@ -69,9 +71,10 @@ case class CsrfInsertFilter[A](cookieName: Csrf.CookieName)(implicit secretStore
  */
 case class CsrfVerifyFilter(verify: Csrf.Verify) extends SimpleFilter[Request, Response] {
 
-  def apply(req: Request, service: Service[Request, Response]): Future[Response] =
+  def apply(req: Request, service: Service[Request, Response]): Future[Response] = {
     for {
       alteredReq <- verify.unsafeInject(req)(_.toString)
       resp <- service(alteredReq)
     } yield resp
+  }
 }

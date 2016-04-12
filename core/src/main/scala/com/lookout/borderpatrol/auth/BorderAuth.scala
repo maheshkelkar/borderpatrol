@@ -42,6 +42,11 @@ object AccessIdRequest {
   def apply[A](sr: BorderRequest, id: Id[A]): AccessIdRequest[A] =
     AccessIdRequest(sr.req, sr.customerId, sr.serviceId, sr.sessionId, id)
 }
+case class RedirectResponse(status: Status, location: String, cookies: Set[Cookie], msg: String)
+{
+  def add(cookie: Cookie): RedirectResponse =
+    copy(cookies = (this.cookies + cookie))
+}
 
 /**
  * Determines the service that the request is trying to contact
@@ -141,7 +146,7 @@ case class SendToIdentityProvider(identityProviderMap: Map[String, Service[Borde
       }
       resp <- Future.exception[Response]{
         statLoginRedirects.incr()
-        BpRedirectError(Status.Unauthorized, location, Some(sessionId),
+        BpRedirectError(Status.Unauthorized, location, Set(sessionId.asCookie()),
           s"Redirecting the ${req.req} for Untagged Session: ${sessionId.toLogIdString} " +
             s"to login service, location: ${location}, " +
             s"x-forwarded-proto: ${req.req.headerMap.get("X-Forwarded-Proto")}, " +
@@ -226,7 +231,7 @@ case class SendToAccessIssuer(accessIssuerMap: Map[String, Service[BorderRequest
       /* 2. Request for Root w/ authenticated Sessionid, redirect to default service */
       case (Some(AuthenticatedTag), None) if Root.startsWith(Path(req.req.path)) =>
         Future.exception(BpRedirectError(Status.NotFound, req.customerId.defaultServiceId.path.toString,
-          req.sessionIdOpt,
+          req.sessionIdOpt.map(_.asCookie()).toSet,
           s"Redirecting the ${req.req} for Authenticated Session: ${req.sessionIdOpt.get.toLogIdString} " +
             s"to upstream service, location: ${req.customerId.defaultServiceId.path}"))
 
@@ -336,7 +341,7 @@ case class IdentityFilter[A : SessionDataEncoder](store: SessionStore)(
         _ <- store.update(session)
       } yield {
         val location = req.customerId.loginManager.protoManager.redirectLocation(req.req.host)
-        throw BpRedirectError(Status.Unauthorized, location, Some(session.id),
+        throw BpRedirectError(Status.Unauthorized, location, Set(session.id.asCookie()),
           s"Failed to find Session: ${req.sessionId.toLogIdString} for: ${req.req}, " +
             s"allocating a new session: ${session.id.toLogIdString}, redirecting to location: ${location}")
       }
@@ -419,7 +424,7 @@ case class ExceptionFilter() extends SimpleFilter[Request, Response] {
   private[this] def infoAndRedirectResponse(req: Request, error: BpRedirectError): Response = {
     log.info(error.msg)
     tap(Response())(res => {
-      error.sessionIdOpt.foreach(sessionId => res.addCookie(sessionId.asCookie()))
+      error.cookies.foreach(res.addCookie(_))
       expectsJson(req) match {
         case true =>
           res.status = error.status
